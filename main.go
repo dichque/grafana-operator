@@ -51,7 +51,7 @@ func main() {
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Minute*10)
 	grafanaInformerFactory := ginformers.NewSharedInformerFactory(grafanaClient, time.Minute*10)
 
-	controller := NewController(kubeClient, grafanaClient, grafanaInformerFactory.Aims().V1().Grafanas(), kubeInformerFactory.Core().V1().ConfigMaps())
+	controller := NewController(kubeClient, grafanaClient, grafanaInformerFactory.Aims().V1().Grafanas(), kubeInformerFactory.Apps().V1().Deployments())
 
 	kubeInformerFactory.Start(wait.NeverStop)
 	grafanaInformerFactory.Start(wait.NeverStop)

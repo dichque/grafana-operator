@@ -19,7 +19,6 @@ limitations under the License.
 package v1
 
 import (
-	"context"
 	"time"
 
 	v1 "github.com/dichque/grafana-operator/pkg/apis/grafana/v1"
@@ -38,14 +37,14 @@ type GrafanasGetter interface {
 
 // GrafanaInterface has methods to work with Grafana resources.
 type GrafanaInterface interface {
-	Create(ctx context.Context, grafana *v1.Grafana, opts metav1.CreateOptions) (*v1.Grafana, error)
-	Update(ctx context.Context, grafana *v1.Grafana, opts metav1.UpdateOptions) (*v1.Grafana, error)
-	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
-	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Grafana, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.GrafanaList, error)
-	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Grafana, err error)
+	Create(*v1.Grafana) (*v1.Grafana, error)
+	Update(*v1.Grafana) (*v1.Grafana, error)
+	Delete(name string, options *metav1.DeleteOptions) error
+	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
+	Get(name string, options metav1.GetOptions) (*v1.Grafana, error)
+	List(opts metav1.ListOptions) (*v1.GrafanaList, error)
+	Watch(opts metav1.ListOptions) (watch.Interface, error)
+	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Grafana, err error)
 	GrafanaExpansion
 }
 
@@ -64,20 +63,20 @@ func newGrafanas(c *AimsV1Client, namespace string) *grafanas {
 }
 
 // Get takes name of the grafana, and returns the corresponding grafana object, and an error if there is any.
-func (c *grafanas) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Grafana, err error) {
+func (c *grafanas) Get(name string, options metav1.GetOptions) (result *v1.Grafana, err error) {
 	result = &v1.Grafana{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("grafanas").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of Grafanas that match those selectors.
-func (c *grafanas) List(ctx context.Context, opts metav1.ListOptions) (result *v1.GrafanaList, err error) {
+func (c *grafanas) List(opts metav1.ListOptions) (result *v1.GrafanaList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,13 +87,13 @@ func (c *grafanas) List(ctx context.Context, opts metav1.ListOptions) (result *v
 		Resource("grafanas").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested grafanas.
-func (c *grafanas) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+func (c *grafanas) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -105,74 +104,71 @@ func (c *grafanas) Watch(ctx context.Context, opts metav1.ListOptions) (watch.In
 		Resource("grafanas").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch(ctx)
+		Watch()
 }
 
 // Create takes the representation of a grafana and creates it.  Returns the server's representation of the grafana, and an error, if there is any.
-func (c *grafanas) Create(ctx context.Context, grafana *v1.Grafana, opts metav1.CreateOptions) (result *v1.Grafana, err error) {
+func (c *grafanas) Create(grafana *v1.Grafana) (result *v1.Grafana, err error) {
 	result = &v1.Grafana{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("grafanas").
-		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(grafana).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
 
 // Update takes the representation of a grafana and updates it. Returns the server's representation of the grafana, and an error, if there is any.
-func (c *grafanas) Update(ctx context.Context, grafana *v1.Grafana, opts metav1.UpdateOptions) (result *v1.Grafana, err error) {
+func (c *grafanas) Update(grafana *v1.Grafana) (result *v1.Grafana, err error) {
 	result = &v1.Grafana{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("grafanas").
 		Name(grafana.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(grafana).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
 
 // Delete takes name of the grafana and deletes it. Returns an error if one occurs.
-func (c *grafanas) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+func (c *grafanas) Delete(name string, options *metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("grafanas").
 		Name(name).
-		Body(&opts).
-		Do(ctx).
+		Body(options).
+		Do().
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *grafanas) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
+func (c *grafanas) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
+	if listOptions.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("grafanas").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
+		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
+		Body(options).
+		Do().
 		Error()
 }
 
 // Patch applies the patch and returns the patched grafana.
-func (c *grafanas) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Grafana, err error) {
+func (c *grafanas) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Grafana, err error) {
 	result = &v1.Grafana{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("grafanas").
-		Name(name).
 		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
+		Name(name).
 		Body(data).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }

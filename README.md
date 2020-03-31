@@ -12,7 +12,7 @@ mkdir -p pkg/apis/grafana/v1
 - Commit & push it to the repository
 
 ```
-go get -u k8s.io/code-generator/...
+go get -u k8s.io/code-generator/...   # This needs to be compatible with kubernetes version, perhaps do @v0.17.0
 cd $GOPATH/src/k8s.io/code-generator
 
  ./generate-groups.sh all "$ROOT_PACKAGE/pkg/client" "$ROOT_PACKAGE/pkg/apis" "$CUSTOM_RESOURCE_NAME:$CUSTOM_RESOURCE_VERSION" --output-base "${GOPATH}/src" --go-header-file "hack/boilerplate.go.txt"

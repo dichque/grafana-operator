@@ -19,7 +19,6 @@ limitations under the License.
 package v1
 
 import (
-	"context"
 	time "time"
 
 	grafanav1 "github.com/dichque/grafana-operator/pkg/apis/grafana/v1"
@@ -62,13 +61,13 @@ func NewFilteredGrafanaInformer(client versioned.Interface, namespace string, re
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AimsV1().Grafanas(namespace).List(context.TODO(), options)
+				return client.AimsV1().Grafanas(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AimsV1().Grafanas(namespace).Watch(context.TODO(), options)
+				return client.AimsV1().Grafanas(namespace).Watch(options)
 			},
 		},
 		&grafanav1.Grafana{},

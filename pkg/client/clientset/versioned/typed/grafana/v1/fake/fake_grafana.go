@@ -19,8 +19,6 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	grafanav1 "github.com/dichque/grafana-operator/pkg/apis/grafana/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -41,7 +39,7 @@ var grafanasResource = schema.GroupVersionResource{Group: "aims.cisco.com", Vers
 var grafanasKind = schema.GroupVersionKind{Group: "aims.cisco.com", Version: "v1", Kind: "Grafana"}
 
 // Get takes name of the grafana, and returns the corresponding grafana object, and an error if there is any.
-func (c *FakeGrafanas) Get(ctx context.Context, name string, options v1.GetOptions) (result *grafanav1.Grafana, err error) {
+func (c *FakeGrafanas) Get(name string, options v1.GetOptions) (result *grafanav1.Grafana, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(grafanasResource, c.ns, name), &grafanav1.Grafana{})
 
@@ -52,7 +50,7 @@ func (c *FakeGrafanas) Get(ctx context.Context, name string, options v1.GetOptio
 }
 
 // List takes label and field selectors, and returns the list of Grafanas that match those selectors.
-func (c *FakeGrafanas) List(ctx context.Context, opts v1.ListOptions) (result *grafanav1.GrafanaList, err error) {
+func (c *FakeGrafanas) List(opts v1.ListOptions) (result *grafanav1.GrafanaList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(grafanasResource, grafanasKind, c.ns, opts), &grafanav1.GrafanaList{})
 
@@ -74,14 +72,14 @@ func (c *FakeGrafanas) List(ctx context.Context, opts v1.ListOptions) (result *g
 }
 
 // Watch returns a watch.Interface that watches the requested grafanas.
-func (c *FakeGrafanas) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeGrafanas) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(grafanasResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a grafana and creates it.  Returns the server's representation of the grafana, and an error, if there is any.
-func (c *FakeGrafanas) Create(ctx context.Context, grafana *grafanav1.Grafana, opts v1.CreateOptions) (result *grafanav1.Grafana, err error) {
+func (c *FakeGrafanas) Create(grafana *grafanav1.Grafana) (result *grafanav1.Grafana, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(grafanasResource, c.ns, grafana), &grafanav1.Grafana{})
 
@@ -92,7 +90,7 @@ func (c *FakeGrafanas) Create(ctx context.Context, grafana *grafanav1.Grafana, o
 }
 
 // Update takes the representation of a grafana and updates it. Returns the server's representation of the grafana, and an error, if there is any.
-func (c *FakeGrafanas) Update(ctx context.Context, grafana *grafanav1.Grafana, opts v1.UpdateOptions) (result *grafanav1.Grafana, err error) {
+func (c *FakeGrafanas) Update(grafana *grafanav1.Grafana) (result *grafanav1.Grafana, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(grafanasResource, c.ns, grafana), &grafanav1.Grafana{})
 
@@ -103,7 +101,7 @@ func (c *FakeGrafanas) Update(ctx context.Context, grafana *grafanav1.Grafana, o
 }
 
 // Delete takes name of the grafana and deletes it. Returns an error if one occurs.
-func (c *FakeGrafanas) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeGrafanas) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(grafanasResource, c.ns, name), &grafanav1.Grafana{})
 
@@ -111,15 +109,15 @@ func (c *FakeGrafanas) Delete(ctx context.Context, name string, opts v1.DeleteOp
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeGrafanas) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(grafanasResource, c.ns, listOpts)
+func (c *FakeGrafanas) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(grafanasResource, c.ns, listOptions)
 
 	_, err := c.Fake.Invokes(action, &grafanav1.GrafanaList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched grafana.
-func (c *FakeGrafanas) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *grafanav1.Grafana, err error) {
+func (c *FakeGrafanas) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *grafanav1.Grafana, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(grafanasResource, c.ns, name, pt, data, subresources...), &grafanav1.Grafana{})
 

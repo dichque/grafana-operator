@@ -26,10 +26,8 @@ import (
 )
 
 // GrafanaLister helps list Grafanas.
-// All objects returned here must be treated as read-only.
 type GrafanaLister interface {
 	// List lists all Grafanas in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Grafana, err error)
 	// Grafanas returns an object that can list and get Grafanas.
 	Grafanas(namespace string) GrafanaNamespaceLister
@@ -60,13 +58,10 @@ func (s *grafanaLister) Grafanas(namespace string) GrafanaNamespaceLister {
 }
 
 // GrafanaNamespaceLister helps list and get Grafanas.
-// All objects returned here must be treated as read-only.
 type GrafanaNamespaceLister interface {
 	// List lists all Grafanas in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Grafana, err error)
 	// Get retrieves the Grafana from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.Grafana, error)
 	GrafanaNamespaceListerExpansion
 }

@@ -39,6 +39,7 @@ type GrafanasGetter interface {
 type GrafanaInterface interface {
 	Create(*v1.Grafana) (*v1.Grafana, error)
 	Update(*v1.Grafana) (*v1.Grafana, error)
+	UpdateStatus(*v1.Grafana) (*v1.Grafana, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
 	Get(name string, options metav1.GetOptions) (*v1.Grafana, error)
@@ -126,6 +127,22 @@ func (c *grafanas) Update(grafana *v1.Grafana) (result *v1.Grafana, err error) {
 		Namespace(c.ns).
 		Resource("grafanas").
 		Name(grafana.Name).
+		Body(grafana).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *grafanas) UpdateStatus(grafana *v1.Grafana) (result *v1.Grafana, err error) {
+	result = &v1.Grafana{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("grafanas").
+		Name(grafana.Name).
+		SubResource("status").
 		Body(grafana).
 		Do().
 		Into(result)

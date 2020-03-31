@@ -100,6 +100,18 @@ func (c *FakeGrafanas) Update(grafana *grafanav1.Grafana) (result *grafanav1.Gra
 	return obj.(*grafanav1.Grafana), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeGrafanas) UpdateStatus(grafana *grafanav1.Grafana) (*grafanav1.Grafana, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(grafanasResource, "status", c.ns, grafana), &grafanav1.Grafana{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*grafanav1.Grafana), err
+}
+
 // Delete takes name of the grafana and deletes it. Returns an error if one occurs.
 func (c *FakeGrafanas) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.

@@ -48,8 +48,8 @@ func main() {
 		klog.Fatalf("Error building cnat clientset: %s", err.Error())
 	}
 
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Minute*10)
-	grafanaInformerFactory := ginformers.NewSharedInformerFactory(grafanaClient, time.Minute*10)
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Minute*1)
+	grafanaInformerFactory := ginformers.NewSharedInformerFactory(grafanaClient, time.Minute*1)
 
 	controller := NewController(kubeClient, grafanaClient, grafanaInformerFactory.Aims().V1().Grafanas(), kubeInformerFactory.Apps().V1().Deployments())
 

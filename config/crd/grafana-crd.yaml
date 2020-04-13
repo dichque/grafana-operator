@@ -1,0 +1,60 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  # name must match the spec fields below, and be in the form: <plural>.<group>
+  name: grafanas.aims.cisco.com
+spec:
+  # group name to use for REST API: /apis/<group>/<version>
+  group: aims.cisco.com
+  # list of versions supported by this CustomResourceDefinition
+  versions:
+    - name: v1
+      # Each version can be enabled/disabled by Served flag.
+      served: true
+      # One and only one version must be marked as the storage version.
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                image:
+                  type: string
+                  default: containers.cisco.com/intps/grafana:latest
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 2
+                  default: 1
+                user:
+                  type: string
+                  default: aims
+                password:
+                  type: string
+                  default: aims
+                prometheus_url:
+                  type: string
+                  default: http://prometheus-operated:9090
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+      # subresources describes the subresources for custom resources.                  
+      subresources:
+        # status enables the status subresource.
+        status: {}
+  names:
+    # plural name to be used in the URL: /apis/<group>/<version>/<plural>
+    plural: grafanas
+    # singular name to be used as an alias on the CLI and for display
+    singular: grafana
+    # kind is normally the CamelCased singular type. Your resource manifests use this.
+    kind: Grafana
+    # shortNames allow shorter string to match your resource on the CLI
+    shortNames:
+    - graf                  
+  # either Namespaced or Cluster
+  scope: Namespaced

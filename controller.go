@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -11,7 +12,7 @@ import (
 	"k8s.io/klog"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -27,9 +28,11 @@ import (
 	gscheme "github.com/dichque/grafana-operator/pkg/client/clientset/versioned/scheme"
 	ginformers "github.com/dichque/grafana-operator/pkg/client/informers/externalversions/grafana/v1"
 	glisters "github.com/dichque/grafana-operator/pkg/client/listers/grafana/v1"
+	"github.com/dichque/grafana-operator/pkg/util"
 )
 
 const controllerName = "grafana-controller"
+const maxRetries = 3
 
 // Controller struct for Grafana resources
 type Controller struct {
@@ -58,7 +61,7 @@ func NewController(
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClientset.CoreV1().Events("")})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerName})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: controllerName})
 
 	controller := &Controller{
 		kubeClientset:    kubeClientset,
@@ -151,7 +154,7 @@ func (c *Controller) processNextWorkItem() bool {
 	if err == nil {
 		c.workqueue.Forget(key)
 		klog.Info("Successfully processed")
-	} else if c.workqueue.NumRequeues(key) < 3 {
+	} else if c.workqueue.NumRequeues(key) < maxRetries {
 		c.workqueue.AddRateLimited(key)
 		klog.Info("Re-processing the queue")
 	} else {
@@ -168,7 +171,7 @@ func (c *Controller) processNextWorkItem() bool {
 }
 
 func (c *Controller) syncHandler(key string) error {
-	klog.Infof("=== Reconciling At %s", key)
+	klog.Infof("=== Reconciling Grafana %s", key)
 
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -177,7 +180,7 @@ func (c *Controller) syncHandler(key string) error {
 		return nil
 	}
 
-	// Get the At resource with this namespace/name
+	// Get the Grafana resource with this namespace/name
 	original, err := c.gLister.Grafanas(namespace).Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -192,10 +195,76 @@ func (c *Controller) syncHandler(key string) error {
 	instance := original.DeepCopy()
 
 	if instance.Status.Phase == "" {
-		instance.Status.Phase = aimsv1.PhasePending
+		instance.Status.Phase = aimsv1.PhasePrerun
 	}
 
-	return err
+	switch instance.Status.Phase {
+	case aimsv1.PhasePrerun:
+		klog.Infof("instance: %s phase: PRERUN", key)
+
+		gCMList := &v1.ConfigMapList{}
+		cm := &v1.ConfigMap{}
+
+		gCMList = util.CreateConfigMap(instance, gCMList)
+
+		for _, *cm = range gCMList.Items {
+			_, err := c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Get(cm.Name, metav1.GetOptions{})
+
+			if err != nil && errors.IsNotFound(err) {
+				_, err = c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Create(cm)
+				if err != nil {
+					return err
+				}
+				klog.Infof("Configmap created successfully: %s", cm.Name)
+			} else if err != nil {
+				return err
+			} else {
+				return nil
+			}
+		}
+
+		instance.Status.Phase = aimsv1.PhaseRunning
+
+	case aimsv1.PhaseRunning:
+		klog.Infof("instance: %s phase: RUNNING", key)
+		gdeploy := util.Deployment(instance)
+
+		found, err := c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Get(gdeploy.Name, metav1.GetOptions{})
+
+		if err != nil && errors.IsNotFound(err) {
+			found, err = c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Create(gdeploy)
+			if err != nil {
+				return err
+			}
+			klog.Infof("instance %s: deployment launched: name=%s", key, gdeploy.Name)
+		} else if err != nil {
+			return err
+		} else if found.Status.AvailableReplicas <= *instance.Spec.Replicas {
+			klog.Infof("instance %s deployment processing: available replica: count=%v", key, found.Status.AvailableReplicas)
+			instance.Status.Phase = aimsv1.PhaseDone
+		} else {
+			// Re-queue happens automatically
+			return nil
+		}
+
+	case aimsv1.PhaseDone:
+		klog.Infof("instance %s phase: DONE", key)
+		return nil
+
+	default:
+		klog.Infof("instance %s phase: NOP", key)
+		return nil
+	}
+
+	if !reflect.DeepEqual(original, instance) {
+		_, err = c.grafanaClientset.AimsV1().Grafanas(instance.Namespace).UpdateStatus(instance)
+		if err != nil {
+			klog.Errorf("Unable to update status of grafana instance: %s : %s", instance.Name, err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 // enqueueGrafana takes a Grafana resource and converts it into a namespace/name
@@ -236,7 +305,7 @@ func (c *Controller) enqueueDeployment(obj interface{}) {
 
 		grafana, err := c.gLister.Grafanas(deploy.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			klog.V(4).Infof("ignoring orphaned deploy '%s' of At '%s'", deploy.GetSelfLink(), ownerRef.Name)
+			klog.V(4).Infof("ignoring orphaned deploy '%s' of Grafana '%s'", deploy.GetSelfLink(), ownerRef.Name)
 			return
 		}
 

@@ -4,9 +4,9 @@ all: clean deps format check build
 
 jenkins: clean deps format build-linux
 
-build: test
+build:
 	@echo "==> Building..."
-	CGO_ENABLED=0 ${GO} build -o ${APP_NAME}
+	CGO_ENABLED=0 go build -o ${APP_NAME}
 
 build-linux: test
 	@echo "==> Building..."
@@ -14,7 +14,7 @@ build-linux: test
 	@echo `hostname` >> .BUILD.txt
 	@echo `date` >> .BUILD.txt
 	cat .BUILD.txt
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 ${GO} build -ldflags="-w -s" -o ${APP_NAME}-linux
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o ${APP_NAME}-linux
 
 container: build-linux
 	docker build -t ${REMOTE_IMAGE_REPO}/${REPO_ORG}/kaas-entitlement-controller:${VERSION} .
@@ -37,18 +37,18 @@ clean:
 
 deps: 
 	@echo "==> Getting Dependencies..."
-	${GO} mod tidy
-	${GO} mod download
+	go mod tidy
+	go mod download
 
 test: 
 	@echo "==> Testing..."
-	CGO_ENABLED=0 ${GO} test -tags test -v -covermode=atomic -count=1 ./... -coverprofile coverage.out
-	${GO} test -race -tags test -covermode=atomic -count=1 ./... -json > report.json
-	${GO} tool cover -func=coverage.out
+	CGO_ENABLED=0 go test -tags test -v -covermode=atomic -count=1 ./... -coverprofile coverage.out
+	go test -race -tags test -covermode=atomic -count=1 ./... -json > report.json
+	go tool cover -func=coverage.out
 
 format:
 	@echo "==> Code Formatting..."
-	${GO} fmt  ./pkg/...
+	go fmt . ./pkg/...
 
 check: format
 	@echo "==> Code Check..."
@@ -56,4 +56,4 @@ check: format
 
 setup:
 	@echo "==> Setup..."
-	${GO} get -u github.com/golangci/golangci-lint/cmd/golangci-lint@v1.14.0
+	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint@v1.14.0

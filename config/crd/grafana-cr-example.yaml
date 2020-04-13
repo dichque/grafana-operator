@@ -1,0 +1,10 @@
+apiVersion: "aims.cisco.com/v1"
+kind: Grafana
+metadata:
+  name: grafana-sample-1
+spec:
+  replicas: 1
+  image: grafana/grafana:6.0.0
+  user: aims
+  password: changeit
+  prometheus_url: http://prometheus-operated:9090

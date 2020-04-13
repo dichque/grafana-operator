@@ -4,8 +4,10 @@ go 1.14
 
 require (
 	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.1.0 // indirect
+	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sys v0.0.0-20191022100944-742c48ecaeb7 // indirect

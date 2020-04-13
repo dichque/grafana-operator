@@ -8,10 +8,24 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 const (
-	PhasePending = "PENDING"
+	PhasePrerun  = "PRERUN"
 	PhaseRunning = "RUNNING"
 	PhaseDone    = "DONE"
 )
+
+// GrafanaSpec is the spec for a Grafana resource
+type GrafanaSpec struct {
+	Image         string `json:"image"`
+	Replicas      *int32 `json:"replicas"`
+	Username      string `json:"user"`
+	Password      string `json:"password"`
+	PrometheusURL string `json:"prometheus_url"`
+}
+
+// GrafanaStatus defines the observed state of At
+type GrafanaStatus struct {
+	Phase string `json:"phase,omitempty"`
+}
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -26,23 +40,11 @@ type Grafana struct {
 	Status GrafanaStatus `json:"status,omitempty"`
 }
 
-// GrafanaSpec is the spec for a Grafana resource
-type GrafanaSpec struct {
-	Image    string `json:"image"`
-	Replicas *int32 `json:"replicas"`
-}
-
-// GrafanaStatus defines the observed state of At
-type GrafanaStatus struct {
-	Phase string `json:"phase,omitempty"`
-}
-
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // GrafanaList is a list of Grafana resources
 type GrafanaList struct {
 	meta_v1.TypeMeta `json:",inline"`
 	meta_v1.ListMeta `json:"metadata,omitempty"`
-
-	Items []Grafana `json:"items"`
+	Items            []Grafana `json:"items"`
 }

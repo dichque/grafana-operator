@@ -18,7 +18,6 @@ type GrafanaSpec struct {
 
 // GrafanaStatus defines the observed state of grafana
 type GrafanaStatus struct {
-	Status  string `json:status`
 	Message string `json:message`
 }
 

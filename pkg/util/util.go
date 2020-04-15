@@ -121,7 +121,7 @@ func CreateConfigMap(grafana *aimsv1.Grafana, cmList *v1.ConfigMapList) *v1.Conf
 func Deployment(grafana *aimsv1.Grafana) *appsv1.Deployment {
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      grafana.Name + "-deployment",
+			Name:      grafana.Name + "-grafana",
 			Namespace: grafana.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{

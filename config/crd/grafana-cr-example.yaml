@@ -6,5 +6,5 @@ spec:
   replicas: 1
   image: grafana/grafana:6.0.0
   user: aims
-  password: changeit
+  password: password
   prometheus_url: http://prometheus-operated:9090

@@ -7,18 +7,24 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+const (
+	PhasePending = "PENDING"
+	PhaseRunning = "RUNNING"
+	PhaseDone    = "DONE"
+)
+
 // GrafanaSpec is the spec for a grafana resource
 type GrafanaSpec struct {
-	Image         string `json:"image"`
-	Replicas      *int32 `json:"replicas"`
-	Username      string `json:"user"`
-	Password      string `json:"password"`
-	PrometheusURL string `json:"prometheus_url"`
+	Image         string `json:"image,omitempty"`
+	Replicas      *int32 `json:"replicas,omitempty"`
+	Username      string `json:"user,omitempty"`
+	Password      string `json:"password,omitempty"`
+	PrometheusURL string `json:"prometheus_url,omitempty"`
 }
 
 // GrafanaStatus defines the observed state of grafana
 type GrafanaStatus struct {
-	Message string `json:message`
+	Phase string `json:"phase,omitempty"`
 }
 
 // +genclient

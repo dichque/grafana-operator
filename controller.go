@@ -18,11 +18,12 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informer "k8s.io/client-go/informers/apps/v1"
+	corev1informer "k8s.io/client-go/informers/core/v1"
 	appsv1lister "k8s.io/client-go/listers/apps/v1"
+	corev1lister "k8s.io/client-go/listers/core/v1"
 
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	aimsv1 "github.com/dichque/grafana-operator/pkg/apis/grafana/v1"
 	clientset "github.com/dichque/grafana-operator/pkg/client/clientset/versioned"
 	"github.com/dichque/grafana-operator/pkg/client/clientset/versioned/scheme"
 	gscheme "github.com/dichque/grafana-operator/pkg/client/clientset/versioned/scheme"
@@ -31,8 +32,19 @@ import (
 	"github.com/dichque/grafana-operator/pkg/util"
 )
 
-const controllerName = "grafana-controller"
-const maxRetries = 3
+const controllerName string = "grafana-controller"
+const maxRetries int = 3
+const aimsNSLabel string = "aims.cisco.com/kaas"
+
+type actionType string
+
+const (
+	addAction    actionType = "create"
+	updateAction actionType = "update"
+	deleteAction actionType = "delete"
+)
+
+var action actionType
 
 // Controller struct for Grafana resources
 type Controller struct {
@@ -45,6 +57,9 @@ type Controller struct {
 	deploymentLister appsv1lister.DeploymentLister
 	deploymentSynced cache.InformerSynced
 
+	configMapLister corev1lister.ConfigMapLister
+	configMapSynced cache.InformerSynced
+
 	workqueue workqueue.RateLimitingInterface
 	recorder  record.EventRecorder
 }
@@ -54,7 +69,8 @@ func NewController(
 	kubeClientset kubernetes.Interface,
 	grafanaClientset clientset.Interface,
 	ginformer ginformers.GrafanaInformer,
-	deploymentInformer appsv1informer.DeploymentInformer) *Controller {
+	deploymentInformer appsv1informer.DeploymentInformer,
+	configMapInformer corev1informer.ConfigMapInformer) *Controller {
 
 	utilruntime.Must(gscheme.AddToScheme(scheme.Scheme))
 	klog.V(4).Info("Creating event broadcaster")
@@ -70,6 +86,8 @@ func NewController(
 		gSynced:          ginformer.Informer().HasSynced,
 		deploymentLister: deploymentInformer.Lister(),
 		deploymentSynced: deploymentInformer.Informer().HasSynced,
+		configMapLister:  configMapInformer.Lister(),
+		configMapSynced:  configMapInformer.Informer().HasSynced,
 		workqueue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Grafana"),
 		recorder:         recorder,
 	}
@@ -77,20 +95,40 @@ func NewController(
 	klog.Info("Setting up event handlers")
 	// Set up an event handler for when Grafana resources change
 	ginformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.enqueueGrafana,
+		AddFunc: func(obj interface{}) {
+			controller.enqueueGrafana(obj, addAction)
+		},
 		UpdateFunc: func(old, new interface{}) {
-			controller.enqueueGrafana(new)
+			controller.enqueueGrafana(new, updateAction)
 		},
 	})
+
 	// Set up an event handler for when Deployment resources change
 	deploymentInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.enqueueDeployment,
+		AddFunc: func(obj interface{}) {
+			controller.enqueueDeployment(obj, addAction)
+		},
 		UpdateFunc: func(old, new interface{}) {
-			controller.enqueueDeployment(new)
+			controller.enqueueDeployment(new, updateAction)
+		},
+		DeleteFunc: func(obj interface{}) {
+			controller.enqueueDeployment(obj, deleteAction)
+		},
+	})
+
+	// Set up an event handler for configmap resources change
+	configMapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			controller.enqueueConfigMap(obj, addAction)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			controller.enqueueConfigMap(newObj, updateAction)
+		},
+		DeleteFunc: func(obj interface{}) {
+			controller.enqueueConfigMap(obj, deleteAction)
 		},
 	})
 	return controller
-
 }
 
 // Run will set up the event handlers for types we are interested in, as well
@@ -149,7 +187,7 @@ func (c *Controller) processNextWorkItem() bool {
 		return true
 	}
 
-	err := c.syncHandler(key)
+	err := c.reconcile(key)
 
 	if err == nil {
 		c.workqueue.Forget(key)
@@ -170,7 +208,7 @@ func (c *Controller) processNextWorkItem() bool {
 	return true
 }
 
-func (c *Controller) syncHandler(key string) error {
+func (c *Controller) reconcile(key string) error {
 	klog.Infof("=== Reconciling Grafana %s", key)
 
 	// Convert the namespace/name string into a distinct namespace and name
@@ -180,6 +218,14 @@ func (c *Controller) syncHandler(key string) error {
 		return nil
 	}
 
+	// Validate namespace before we process
+	foundNS, err := c.kubeClientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	foundNSLabels := foundNS.GetLabels()
+	if foundNSLabels[aimsNSLabel] != "true" {
+		klog.Errorf("namespace: %s is missing aims label grafana will not be installed", namespace)
+		return err
+	}
+
 	// Get the Grafana resource with this namespace/name
 	original, err := c.gLister.Grafanas(namespace).Get(name)
 	if err != nil {
@@ -187,72 +233,58 @@ func (c *Controller) syncHandler(key string) error {
 			utilruntime.HandleError(fmt.Errorf("grafana '%s' in work queue no longer exists", key))
 			return nil
 		}
-
 		return err
 	}
 
 	// Clone because the original object is owned by the lister.
 	instance := original.DeepCopy()
 
-	if instance.Status.Phase == "" {
-		instance.Status.Phase = aimsv1.PhasePrerun
-	}
+	gCMList := &v1.ConfigMapList{}
+	cm := &v1.ConfigMap{}
+	gCMList = util.CreateConfigMap(instance, gCMList)
 
-	switch instance.Status.Phase {
-	case aimsv1.PhasePrerun:
-		klog.Infof("instance: %s phase: PRERUN", key)
-
-		gCMList := &v1.ConfigMapList{}
-		cm := &v1.ConfigMap{}
-
-		gCMList = util.CreateConfigMap(instance, gCMList)
-
-		for _, *cm = range gCMList.Items {
-			_, err := c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Get(cm.Name, metav1.GetOptions{})
-
-			if err != nil && errors.IsNotFound(err) {
-				_, err = c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Create(cm)
-				if err != nil {
-					return err
-				}
-				klog.Infof("Configmap created successfully: %s", cm.Name)
-			} else if err != nil {
-				return err
-			} else {
-				return nil
-			}
-		}
-
-		instance.Status.Phase = aimsv1.PhaseRunning
-
-	case aimsv1.PhaseRunning:
-		klog.Infof("instance: %s phase: RUNNING", key)
-		gdeploy := util.Deployment(instance)
-
-		found, err := c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Get(gdeploy.Name, metav1.GetOptions{})
+	for _, *cm = range gCMList.Items {
+		foundCM, err := c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Get(cm.Name, metav1.GetOptions{})
 
 		if err != nil && errors.IsNotFound(err) {
-			found, err = c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Create(gdeploy)
+			_, err = c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Create(cm)
 			if err != nil {
 				return err
 			}
-			klog.Infof("instance %s: deployment launched: name=%s", key, gdeploy.Name)
+			klog.Infof("configmap created: %s", cm.Name)
+		} else if !reflect.DeepEqual(foundCM.Data, cm.Data) {
+			_, err = c.kubeClientset.CoreV1().ConfigMaps(cm.Namespace).Update(cm)
+			if err != nil {
+				return err
+			}
+			klog.Infof("configmap updated: %s", cm.Name)
+			// TODO: We may need to bounce the pods for changes to take effects
 		} else if err != nil {
 			return err
-		} else if found.Status.AvailableReplicas <= *instance.Spec.Replicas {
-			klog.Infof("instance %s deployment processing: available replica: count=%v", key, found.Status.AvailableReplicas)
-			instance.Status.Phase = aimsv1.PhaseDone
-		} else {
-			// Re-queue happens automatically
-			return nil
+		}
+	}
+
+	gdeploy := util.Deployment(instance)
+	found, err := c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Get(gdeploy.Name, metav1.GetOptions{})
+
+	if err != nil && errors.IsNotFound(err) {
+		found, err = c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Create(gdeploy)
+		if err != nil {
+			return err
+		}
+		klog.Infof("deployment launched: %s", gdeploy.Name)
+	} else if err != nil {
+		return err
+	} else if *found.Spec.Replicas != *instance.Spec.Replicas {
+		gdeploy.Spec.Replicas = instance.Spec.Replicas
+		_, err = c.kubeClientset.AppsV1().Deployments(gdeploy.Namespace).Update(gdeploy)
+		if err != nil {
+			klog.Errorf("unable to reconcile replica count: %s", err)
 		}
 
-	case aimsv1.PhaseDone:
-		klog.Infof("instance %s phase: DONE", key)
-		return nil
-
-	default:
-		klog.Infof("instance %s phase: NOP", key)
+		klog.Infof("deployment processing: available replica: count=%v", found.Status.AvailableReplicas)
+	} else {
+		// Re-queue happens automatically
 		return nil
 	}
 
@@ -270,21 +302,25 @@ func (c *Controller) syncHandler(key string) error {
 // enqueueGrafana takes a Grafana resource and converts it into a namespace/name
 // string which is then put onto the work queue. This method should *not* be
 // passed resources of any type other than Grafana.
-func (c *Controller) enqueueGrafana(obj interface{}) {
+func (c *Controller) enqueueGrafana(obj interface{}, a actionType) {
 	var key string
 	var err error
+	action = a
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
+	klog.Infof("enqueue grafana with action: %s", action)
 	c.workqueue.Add(key)
 }
 
 // enqueue a  deployment and checks that the owner reference points to an Grafana object. It then
 // enqueues this Grafana object.
-func (c *Controller) enqueueDeployment(obj interface{}) {
+func (c *Controller) enqueueDeployment(obj interface{}, a actionType) {
 	var deploy *appsv1.Deployment
 	var ok bool
+	action = a
+
 	if deploy, ok = obj.(*appsv1.Deployment); !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -309,7 +345,43 @@ func (c *Controller) enqueueDeployment(obj interface{}) {
 			return
 		}
 
-		klog.Infof("enqueuing Grafana %s/%s because deployment changed", grafana.Namespace, grafana.Name)
-		c.enqueueGrafana(grafana)
+		klog.Infof("enqueuing Grafana %s/%s because of deployment change or periodic reconcilation", grafana.Namespace, grafana.Name)
+		c.enqueueGrafana(grafana, action)
+	}
+}
+
+// enqueue a  configmap and checks that the owner reference points to an Grafana object. It then
+// enqueues this Grafana object.
+func (c *Controller) enqueueConfigMap(obj interface{}, a actionType) {
+	var cm *v1.ConfigMap
+	var ok bool
+	action = a
+
+	if cm, ok = obj.(*v1.ConfigMap); !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("error decoding configmap, invalid type"))
+			return
+		}
+		cm, ok = tombstone.Obj.(*v1.ConfigMap)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("error decoding configmap tombstone, invalid type"))
+			return
+		}
+		klog.V(4).Infof("Recovered deleted configmap '%s' from tombstone", cm.GetName())
+	}
+	if ownerRef := metav1.GetControllerOf(cm); ownerRef != nil {
+		if ownerRef.Kind != "Grafana" {
+			return
+		}
+
+		grafana, err := c.gLister.Grafanas(cm.GetNamespace()).Get(ownerRef.Name)
+		if err != nil {
+			klog.V(4).Infof("ignoring orphaned configmap '%s' of Grafana '%s'", cm.GetSelfLink(), ownerRef.Name)
+			return
+		}
+
+		klog.Infof("enqueuing Grafana %s/%s because of configmap change or periodic reconcilation", grafana.Namespace, grafana.Name)
+		c.enqueueGrafana(grafana, action)
 	}
 }

@@ -40,7 +40,9 @@ spec:
             status:
               type: object
               properties:
-                phase:
+                type:
+                  type: string
+                status:
                   type: string
       # subresources describes the subresources for custom resources.                  
       subresources:

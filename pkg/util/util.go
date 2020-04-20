@@ -27,7 +27,7 @@ func buildCMData(path string) map[string]string {
 	m := make(map[string]string)
 
 	for _, path := range strings.Split(path, ",") {
-		data, err := ioutil.ReadFile(dashboardPath + path)
+		data, err := ioutil.ReadFile(Dashbo + path)
 		if err != nil {
 			klog.Errorf("Couldn't read file: %s %s", path, err)
 		}

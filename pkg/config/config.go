@@ -5,7 +5,7 @@ const (
 	DashboardPath string = "config/templates/dashboards/"
 )
 
-type grafanaConfig struct {
+type GrafanaConfig struct {
 	AdminUser     string
 	AdminPassword string
 	PrometheusURL string

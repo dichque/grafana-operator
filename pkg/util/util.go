@@ -7,6 +7,7 @@ import (
 	"text/template"
 
 	aimsv1 "github.com/dichque/grafana-operator/pkg/apis/grafana/v1"
+	"github.com/dichque/grafana-operator/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +28,7 @@ func buildCMData(path string) map[string]string {
 	m := make(map[string]string)
 
 	for _, path := range strings.Split(path, ",") {
-		data, err := ioutil.ReadFile(Dashbo + path)
+		data, err := ioutil.ReadFile(config.DashboardPath + path)
 		if err != nil {
 			klog.Errorf("Couldn't read file: %s %s", path, err)
 		}
@@ -37,7 +38,7 @@ func buildCMData(path string) map[string]string {
 	return m
 }
 
-func buildCMDataFromTemplate(path string, cfg *grafanaConfig) map[string]string {
+func buildCMDataFromTemplate(path string, cfg *config.GrafanaConfig) map[string]string {
 	m := make(map[string]string)
 
 	tmpfile, err := ioutil.TempFile("/tmp", ".grafana-controller")
@@ -46,7 +47,7 @@ func buildCMDataFromTemplate(path string, cfg *grafanaConfig) map[string]string 
 	}
 
 	for _, path := range strings.Split(path, ",") {
-		tmpl, err := template.ParseFiles(templatePath + path + ".tmpl")
+		tmpl, err := template.ParseFiles(config.TemplatePath + path + ".tmpl")
 		if err != nil {
 			klog.Errorf("Unable to parse template file: %s: %s", path+".tmpl", err)
 		}
@@ -68,7 +69,7 @@ func buildCMDataFromTemplate(path string, cfg *grafanaConfig) map[string]string 
 // CreateConfigMap returns configmaplist for loading to grafana deployment
 func CreateConfigMap(grafana *aimsv1.Grafana, cmList *v1.ConfigMapList) *v1.ConfigMapList {
 
-	gcfg := &grafanaConfig{
+	gcfg := &config.GrafanaConfig{
 		AdminPassword: grafana.Spec.Password,
 		AdminUser:     grafana.Spec.Username,
 		PrometheusURL: grafana.Spec.PrometheusURL,
